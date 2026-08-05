@@ -1,3 +1,4 @@
+import threading
 import time
 
 from assets.devices.aircompressor import AirCompressor
@@ -24,9 +25,12 @@ def main():
     compressor.start()
     extruder.start()
 
-    while True:
-        dashboard.update()
+    threading.Thread(
+        target=dashboard.start,
+        daemon=True
+    ).start()
 
+    while True:
         compressor.update()
 
         extruder.update()

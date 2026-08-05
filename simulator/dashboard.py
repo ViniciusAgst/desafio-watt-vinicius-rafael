@@ -1,94 +1,82 @@
-import tkinter as tk
-from tkinter import ttk
+from flask import Flask, render_template, jsonify
 
 
 class Dashboard:
 
     def __init__(self, grid, compressor, extruder):
+
         self.grid = grid
         self.compressor = compressor
         self.extruder = extruder
 
-        self.root = tk.Tk()
-        self.root.title("Simulador")
-        self.root.geometry("600x450")
+        self.app = Flask(__name__)
 
-        self._create_widgets()
+        self.routes()
 
+    def routes(self):
 
-    def _create_widgets(self):
-
-        frame = ttk.LabelFrame(
-            self.root,
-            text="Rede Elétrica"
-        )
-
-        frame.pack(fill="x", padx=10, pady=10)
+        @self.app.route("/")
+        def index():
+            return render_template("index.html")
 
 
-        ttk.Button(
-            frame,
-            text="Iniciar Afundamento de Tensão",
-            command=self.grid.start_fault
-        ).pack(padx=5, pady=3)
+        @self.app.route("/data")
+        def data():
+            return jsonify({
+
+                "grid": {
+                    "voltage": self.grid.voltage
+                },
+
+                "compressor": {
+                    "current": self.compressor.current
+                },
+
+                "extruder": {
+                    "current_thd": self.extruder.current_thd
+                }
+
+            })
 
 
-        ttk.Button(
-            frame,
-            text="Desligar Falha",
-            command=self.grid.stop_fault
-        ).pack(padx=5, pady=3)
+        @self.app.post("/grid/start")
+        def grid_start():
+            self.grid.start_fault()
+            return jsonify({"status": "ok", "device": "grid", "action": "start"})
 
-
-
-
-        frame = ttk.LabelFrame(
-            self.root,
-            text="Compressor"
-        )
-        frame.pack(fill="x", padx=10, pady=10)
-
-
-        ttk.Button(
-            frame,
-            text="Iniciar Falha",
-            command=self.compressor.start_fault
-        ).pack(padx=5, pady=3)
-
-
-        ttk.Button(
-            frame,
-            text="Desligar Falha",
-            command=self.compressor.stop_fault
-        ).pack(padx=5, pady=3)
+        @self.app.post("/grid/stop")
+        def grid_stop():
+            self.grid.stop_fault()
+            return jsonify({"status": "ok", "device": "grid", "action": "stop"})
 
 
 
 
-        frame = ttk.LabelFrame(
-            self.root,
-            text="Extrusora"
-        )
-        frame.pack(fill="x", padx=10, pady=10)
+
+        @self.app.post("/compressor/start")
+        def compressor_start():
+            self.compressor.start_fault()
+            return jsonify({"status": "ok", "device": "compressor", "action": "start"})
+
+        @self.app.post("/compressor/stop")
+        def compressor_stop():
+            self.compressor.stop_fault()
+            return jsonify({"status": "ok", "device": "compressor", "action": "stop"})
 
 
-        ttk.Button(
-            frame,
-            text="Aumentar THD",
-            command=self.extruder.start_fault
-        ).pack(padx=5, pady=3)
 
 
-        ttk.Button(
-            frame,
-            text="Desligar Falha",
-            command=self.extruder.stop_fault
-        ).pack(padx=5, pady=3)
+        @self.app.post("/extruder/start")
+        def extruder_start():
+            self.extruder.start_fault()
+            return jsonify({"status": "ok", "device": "extruder", "action": "start"})
+
+        @self.app.post("/extruder/stop")
+        def extruder_stop():
+            self.extruder.stop_fault()
+            return jsonify({"status": "ok", "device": "extruder", "action": "stop"})
 
 
-    def update(self):
-        self.root.update()
 
-
-    def destroy(self):
-        self.root.destroy()
+    def start(self):
+        self.app.run(host="0.0.0.0", port=5000)

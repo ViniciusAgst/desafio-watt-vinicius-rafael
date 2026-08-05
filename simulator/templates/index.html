@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>Painel de Falhas</title>
+
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+</head>
+<body>
+
+<header>
+  <h1>Painel de Falhas</h1>
+  <p>Rede, Compressor e Extrusora</p>
+</header>
+
+<div class="grid">
+
+  <div class="card grid-card" id="card-grid">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Rede (Grid)</div>
+        <div class="card-sub">Tensão</div>
+      </div>
+      <div class="status-pill" id="status-grid">Normal</div>
+    </div>
+    <div class="value-row">
+      <span class="value-number" id="value-grid">--</span>
+      <span class="value-unit">V</span>
+    </div>
+    <div class="chart-wrap"><canvas id="chart-grid"></canvas></div>
+    <div class="btn-row">
+      <button class="btn-start" id="start-grid">Iniciar Falha</button>
+      <button class="btn-stop" id="stop-grid" disabled>Parar Falha</button>
+    </div>
+  </div>
+
+
+  <div class="card compressor-card" id="card-compressor">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Compressor</div>
+        <div class="card-sub">Corrente</div>
+      </div>
+      <div class="status-pill" id="status-compressor">Normal</div>
+    </div>
+    <div class="value-row">
+      <span class="value-number" id="value-compressor">--</span>
+      <span class="value-unit">A</span>
+    </div>
+    <div class="chart-wrap"><canvas id="chart-compressor"></canvas></div>
+    <div class="btn-row">
+      <button class="btn-start" id="start-compressor">Iniciar Falha</button>
+      <button class="btn-stop" id="stop-compressor" disabled>Parar Falha</button>
+    </div>
+  </div>
+
+
+  <div class="card extruder-card" id="card-extruder">
+    <div class="card-header">
+      <div>
+        <div class="card-title">Extrusora</div>
+        <div class="card-sub">THD de Corrente</div>
+      </div>
+      <div class="status-pill" id="status-extruder">Normal</div>
+    </div>
+    <div class="value-row">
+      <span class="value-number" id="value-extruder">--</span>
+      <span class="value-unit">%</span>
+    </div>
+    <div class="chart-wrap"><canvas id="chart-extruder"></canvas></div>
+    <div class="btn-row">
+      <button class="btn-start" id="start-extruder">Iniciar Falha</button>
+      <button class="btn-stop" id="stop-extruder" disabled>Parar Falha</button>
+    </div>
+  </div>
+
+</div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+
+</body>
+</html>

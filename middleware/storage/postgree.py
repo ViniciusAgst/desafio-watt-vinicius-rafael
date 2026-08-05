@@ -12,7 +12,7 @@ class PostgreSQL:
             host="localhost",
             database="industrial",
             user="postgres",
-            password="postgres",
+            password="root",
             port=5432
         )
 
