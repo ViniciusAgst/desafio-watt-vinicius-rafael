@@ -39,7 +39,7 @@ class MQTTClient:
 
         client.subscribe("simulator/grid", qos=0)
         client.subscribe("simulator/extruder", qos=0)
-        client.subscribe("simulator/compressor", qos=0)
+        client.subscribe("simulator/aircompressor", qos=0)
 
         print("[MQTT] Conectado")
 

@@ -23,7 +23,7 @@ class Grid(Device):
 
     def update(self, devices=None):
 
-        if self.state != State.RUNNING:
+        if self.state != State.RUNNING and self.state != State.FAULT:
             return
 
         if devices is not None:

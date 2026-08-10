@@ -1,5 +1,6 @@
 
 from middleware.connection.mqttclient import MQTTClient
+from middleware.opc.server import OpcUaServer
 from middleware.storage.buffer import SQLiteBuffer
 from middleware.storage.cache import DataCache
 from middleware.storage.postgres import PostgresStorage
@@ -21,6 +22,13 @@ def main():
     )
 
     storage.start()
+
+    opc = OpcUaServer(
+        storage=storage,
+        endpoint="opc.tcp://localhost:4840",
+    )
+
+    opc.start()
 
     client = MQTTClient(storage)
     client.connect()

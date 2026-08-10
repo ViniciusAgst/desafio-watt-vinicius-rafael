@@ -7,13 +7,14 @@ class DataCache:
         self.queues = {
             "grid": queue.Queue(maxsize=maxsize),
             "extruder": queue.Queue(maxsize=maxsize),
-            "compressor": queue.Queue(maxsize=maxsize),
+            "aircompressor": queue.Queue(maxsize=maxsize),
         }
 
 
 
     def put(self, source: str, data: dict) -> None:
         q = self.queues.get(source)
+
         if q is None:
             print("Fonte desconhecida: %s", source)
             return
