@@ -1,3 +1,4 @@
+import logging
 import threading
 import time
 
@@ -9,9 +10,11 @@ from dashboard import Dashboard
 
 
 def main():
+    logging.getLogger("werkzeug").disabled = True
+
     mqtt = MQTTClient()
 
-    print("Conectando ao broker...")
+    print("[MQTT] Conectando ao broker...")
 
     mqtt.connect()
 
@@ -38,17 +41,17 @@ def main():
         grid.update([compressor, extruder])
 
         mqtt.publish(
-            "simulador/grid",
+            "simulator/grid",
             grid.get_data()
         )
 
         mqtt.publish(
-            "simulador/aircompressor",
+            "simulator/aircompressor",
             compressor.get_data()
         )
 
         mqtt.publish(
-            "simulador/extruder",
+            "simulator/extruder",
             extruder.get_data()
         )
 

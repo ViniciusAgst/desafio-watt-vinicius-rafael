@@ -1,114 +1,32 @@
-import json
 
-from middleware.client.mqttclient import MQTTClient
-from middleware.storage.buffer import Buffer
-from middleware.storage.postgree import PostgreSQL
-
-buffer = Buffer()
-
-try:
-    database = PostgreSQL()
-    print("PostgreSQL conectado")
-
-except Exception:
-    database = None
-    print("PostgreSQL indisponível")
+from middleware.connection.mqttclient import MQTTClient
+from middleware.storage.buffer import SQLiteBuffer
+from middleware.storage.cache import DataCache
+from middleware.storage.postgres import PostgresStorage
+from middleware.storage.storagemanager import StorageManager
 
 
+def main():
+    cache = DataCache(maxsize=1000)
 
-def save_data(topic, payload):
+    postgres = PostgresStorage(dsn="dbname=simulador user=postgres password=root host=localhost port=5432")
 
-    global database
+    buffer = SQLiteBuffer(db_path="buffer.db")
 
-    try:
-
-        if database is None:
-            database = PostgreSQL()
-
-
-        database.insert(
-            topic,
-            payload
-        )
-
-        print(
-            "Salvo no PostgreSQL:",
-            topic
-        )
-
-        sync_buffer()
-
-
-    except Exception:
-
-        print(
-            "Banco indisponível, usando buffer"
-        )
-
-        buffer.add(
-            topic,
-            payload
-        )
-
-
-
-def sync_buffer():
-
-    global database
-
-    items = buffer.get_all()
-
-    for item in items:
-
-        id, topic, payload = item
-
-        try:
-
-            database.insert(
-                topic,
-                json.loads(payload)
-            )
-
-            buffer.remove(id)
-
-            print(
-                "Buffer sincronizado:",
-                topic
-            )
-
-
-        except Exception:
-
-            break
-
-
-
-def on_message(client, userdata, msg):
-
-    payload = json.loads(
-        msg.payload.decode()
+    storage = StorageManager(
+        cache=cache,
+        postgres=postgres,
+        buffer=buffer,
+        flush_interval=15,
     )
 
+    storage.start()
 
-    save_data(
-        msg.topic,
-        payload
-    )
+    client = MQTTClient(storage)
+    client.connect()
 
-
-
-mqtt = MQTTClient(
-    on_message
-)
+    client.loop_forever()
 
 
-mqtt.connect()
-
-mqtt.subscribe()
-
-
-print(
-    "Coletor iniciado"
-)
-
-mqtt.loop()
+if __name__ == "__main__":
+    main()

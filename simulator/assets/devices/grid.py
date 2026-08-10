@@ -13,11 +13,7 @@ class Grid(Device):
 
         self.voltage = self.NOMINAL_VOLTAGE
         self.power_factor = 0.95
-        self.active_power = 0.0  # kW
-
-        self._fault = False
-        self._fault_type = None
-        self._fault_end = 0.0
+        self.active_power = 0.0
 
     def start(self):
         self.state = State.RUNNING
@@ -36,13 +32,8 @@ class Grid(Device):
                 for device in devices
             )
 
-        if self._fault:
-
-            if time.time() >= self._fault_end:
-                self.stop_fault()
-
-            else:
-                self.voltage = 350 + random.uniform(-2, 2)
+        if self.state == State.FAULT:
+            self.voltage = (350 + random.uniform(-2, 2))
 
         else:
             self.voltage = (
@@ -54,29 +45,23 @@ class Grid(Device):
 
 
     def start_fault(self):
-        if self._fault:
+        if self.state == State.FAULT:
             return
 
-        duration = random.uniform(5, 15)
-
-        self._fault = True
-        self._fault_type = "voltage_sag"
-        self._fault_end = time.time() + duration
+        self.state = State.FAULT
 
 
     def stop_fault(self):
-        self._fault = False
-        self._fault_type = None
-        self.voltage = self.NOMINAL_VOLTAGE
+        self.state = State.RUNNING
 
+        self.voltage = self.NOMINAL_VOLTAGE
 
     def get_data(self):
         return {
+            "timestamp": time.time(),
             "name": self.name,
             "state": self.state.value,
             "voltage": round(self.voltage, 2),
             "power_factor": round(self.power_factor, 3),
-            "active_power_kw": round(self.active_power, 2),
-            "fault": self._fault,
-            "fault_type": self._fault_type
+            "active_power_kw": round(self.active_power, 2)
         }

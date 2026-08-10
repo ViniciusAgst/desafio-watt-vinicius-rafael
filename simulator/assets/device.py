@@ -7,6 +7,7 @@ class Device(ABC):
         self.name = name
         self.state = State.STOPPED
 
+
     @abstractmethod
     def start(self) -> None:
         pass
@@ -41,4 +42,3 @@ class State(Enum):
     RUNNING = "running"
     STOPPING = "stopping"
     FAULT = "fault"
-    MAINTENANCE = "maintenance"

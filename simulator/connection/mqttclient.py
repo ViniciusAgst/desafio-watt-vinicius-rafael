@@ -1,4 +1,5 @@
 import json
+import logging
 import threading
 import time
 
@@ -12,15 +13,14 @@ class MQTTClient:
             client_id="simulator"
         )
 
+        self.client.on_connect = self._on_connect
+        self.client.on_disconnect = self._on_disconnect
+
         self.connected = False
         self.running = False
 
 
     def connect(self):
-
-        self.client.on_connect = self._on_connect
-        self.client.on_disconnect = self._on_disconnect
-
         self.client.connect("localhost", 1883)
 
         self.running = True
@@ -34,12 +34,10 @@ class MQTTClient:
             time.sleep(0.1)
 
 
-
     def disconnect(self):
 
         self.running = False
         self.client.disconnect()
-
 
 
     def publish(self, topic: str, payload: dict):
@@ -57,7 +55,7 @@ class MQTTClient:
     def _on_connect(self, client, userdata, flags, reason_code, properties):
         self.connected = True
 
-        print(f"[MQTT] Conectado ({reason_code})")
+        print("[MQTT] Conectado")
 
 
     def _on_disconnect(self, client, userdata, flags, reason_code, properties):

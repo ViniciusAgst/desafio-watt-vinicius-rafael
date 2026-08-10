@@ -6,21 +6,19 @@ from assets.device import Device, State
 
 class AirCompressor(Device):
 
-    NOMINAL_CURRENT = 45.0      # A
-    NOMINAL_POWER = 30.0        # kW
+    NOMINAL_CURRENT = 45.0
+    NOMINAL_POWER = 30.0
 
     def __init__(self, name: str):
         super().__init__(name)
 
+        self.power = 0.0
+
         self.current = 0.0
         self.power_factor = 0.88
-        self.power = 0.0
 
         self._starting_until = 0.0
         self._cycle_until = 0.0
-
-        self._fault = False
-        self._fault_type = None
 
 
     def start(self):
@@ -50,7 +48,6 @@ class AirCompressor(Device):
 
         now = time.time()
 
-
         if self.state == State.STOPPED:
 
             if now >= self._cycle_until:
@@ -59,7 +56,7 @@ class AirCompressor(Device):
             return
 
 
-        if self._fault:
+        if self.state == State.FAULT:
 
             self.current = (
                 self.NOMINAL_CURRENT *
@@ -129,31 +126,23 @@ class AirCompressor(Device):
 
     def start_fault(self):
 
-        if self._fault:
+        if self.state == State.FAULT:
             return
 
-        self._fault = True
-        self._fault_type = "overcurrent"
+        self.state = State.FAULT
 
 
     def stop_fault(self):
-
-        self._fault = False
-        self._fault_type = None
+        self.state = State.RUNNING
 
 
     def get_data(self):
 
         return {
+            "timestamp": time.time(),
             "name": self.name,
             "state": self.state.value,
             "current": round(self.current, 1),
-            "power_factor": round(
-                self.power_factor, 2
-            ),
-            "power_kw": round(
-                self.power, 2
-            ),
-            "fault": self._fault,
-            "fault_type": self._fault_type
+            "power_factor": round(  self.power_factor, 2),
+            "power_kw": round(   self.power, 2 )
         }
