@@ -21,14 +21,16 @@ def main():
         flush_interval=15,
     )
 
-    storage.start()
-
     opc = OpcUaServer(
         storage=storage,
         endpoint="opc.tcp://localhost:4840",
     )
 
     opc.start()
+
+    storage.start()
+
+
 
     client = MQTTClient(storage)
     client.connect()
