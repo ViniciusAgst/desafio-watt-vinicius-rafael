@@ -33,7 +33,13 @@ class Grid(Device):
             )
 
         if self.state == State.FAULT:
-            self.voltage = (350 + random.uniform(-2, 2))
+
+            if random.random() < 0.15:
+                self.voltage = random.uniform(325, 340)
+            else:
+                self.voltage = random.uniform(348, 352)
+
+            self.power_factor = random.uniform(0.75, 0.89)
 
         else:
             self.voltage = (
@@ -41,8 +47,7 @@ class Grid(Device):
                 + random.uniform(-2, 2)
             )
 
-        self.power_factor = random.uniform(0.94, 0.97)
-
+            self.power_factor = random.uniform(0.94, 0.97)
 
     def start_fault(self):
         if self.state == State.FAULT:
@@ -50,11 +55,11 @@ class Grid(Device):
 
         self.state = State.FAULT
 
-
     def stop_fault(self):
         self.state = State.RUNNING
 
         self.voltage = self.NOMINAL_VOLTAGE
+        self.power_factor = 0.95
 
     def get_data(self):
         return {

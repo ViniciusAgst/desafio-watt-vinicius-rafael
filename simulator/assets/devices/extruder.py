@@ -3,6 +3,7 @@ import time
 
 from assets.device import Device, State
 
+
 class Extruder(Device):
 
     NOMINAL_POWER = 45.0
@@ -24,17 +25,28 @@ class Extruder(Device):
 
     def update(self):
 
-        if self.state != State.RUNNING:
+        if self.state not in (State.RUNNING, State.FAULT):
             return
 
         load = random.uniform(0.7, 1.0)
 
-        self.power = self.NOMINAL_POWER * load
-
         if self.state == State.FAULT:
-            self.current_thd = random.uniform(30.0, 40.0)
+
+            self.current_thd = random.uniform(21.0, 35.0)
+
+            power_factor = random.uniform(0.90, 0.96)
+
+            self.power = (
+                self.NOMINAL_POWER
+                * load
+                * power_factor
+            )
+
         else:
-            self.current_thd = random.uniform(15.0, 25.0)
+
+            self.current_thd = random.uniform(15.0, 20.0)
+
+            self.power = self.NOMINAL_POWER * load
 
         target_temp = (
             30
@@ -43,15 +55,18 @@ class Extruder(Device):
         )
 
         if self.state == State.FAULT:
+
+            target_temp += 10
+
             self.panel_temperature += (
                 target_temp - self.panel_temperature
-            ) * 0.1
+            ) * 0.08
 
         else:
+
             self.panel_temperature += (
                 target_temp - self.panel_temperature
             ) * 0.05
-
 
     def start_fault(self):
 
@@ -60,11 +75,9 @@ class Extruder(Device):
 
         self.state = State.FAULT
 
-
     def stop_fault(self):
 
         self.state = State.RUNNING
-
 
     def get_data(self):
         return {

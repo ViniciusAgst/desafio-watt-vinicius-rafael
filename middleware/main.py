@@ -31,8 +31,8 @@ def main():
     storage.start()
 
 
-
     client = MQTTClient(storage)
+
     client.connect()
 
     client.loop_forever()

@@ -20,7 +20,6 @@ class AirCompressor(Device):
         self._starting_until = 0.0
         self._cycle_until = 0.0
 
-
     def start(self):
 
         if self.state != State.STOPPED:
@@ -32,7 +31,6 @@ class AirCompressor(Device):
             time.time() + random.uniform(2, 4)
         )
 
-
     def stop(self):
 
         self.state = State.STOPPED
@@ -42,7 +40,6 @@ class AirCompressor(Device):
         self._cycle_until = (
             time.time() + random.uniform(10, 20)
         )
-
 
     def update(self):
 
@@ -55,25 +52,23 @@ class AirCompressor(Device):
 
             return
 
-
         if self.state == State.FAULT:
 
             self.current = (
                 self.NOMINAL_CURRENT *
-                random.uniform(8, 10)
+                random.uniform(7.0, 9.0)
             )
 
             self.power_factor = random.uniform(
-                0.60, 0.70
+                0.65, 0.72
             )
 
             self.power = (
                 self.NOMINAL_POWER *
-                random.uniform(1.2, 1.5)
+                random.uniform(1.15, 1.35)
             )
 
             return
-
 
         if self.state == State.STARTING:
 
@@ -88,9 +83,8 @@ class AirCompressor(Device):
 
             self.power = (
                 self.NOMINAL_POWER *
-                random.uniform(0.2, 0.5)
+                random.uniform(0.9, 1.2)
             )
-
 
             if now >= self._starting_until:
 
@@ -101,7 +95,6 @@ class AirCompressor(Device):
                 )
 
             return
-
 
         if self.state == State.RUNNING:
 
@@ -119,10 +112,8 @@ class AirCompressor(Device):
                 random.uniform(-1, 1)
             )
 
-
             if now >= self._cycle_until:
                 self.stop()
-
 
     def start_fault(self):
 
@@ -131,10 +122,9 @@ class AirCompressor(Device):
 
         self.state = State.FAULT
 
-
     def stop_fault(self):
-        self.state = State.RUNNING
 
+        self.state = State.RUNNING
 
     def get_data(self):
 
@@ -143,6 +133,6 @@ class AirCompressor(Device):
             "name": self.name,
             "state": self.state.value,
             "current": round(self.current, 1),
-            "power_factor": round(  self.power_factor, 2),
-            "power_kw": round(   self.power, 2 )
+            "power_factor": round(self.power_factor, 2),
+            "power_kw": round(self.power, 2)
         }

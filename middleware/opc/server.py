@@ -13,6 +13,7 @@ class OpcUaServer:
     SCREEN_SUBSTATION = 2
     SCREEN_COMPRESSOR = 3
     SCREEN_EXTRUDER = 4
+    SCREEN_ALARM = 5
 
     SCREEN_CONFIG = {
         SCREEN_MAIN: {
@@ -69,6 +70,10 @@ class OpcUaServer:
                 ],
             },
         },
+        SCREEN_ALARM: {
+            "name": "TelaAlarme",
+            "scalars": { },
+        },
     }
 
     def __init__(
@@ -85,7 +90,7 @@ class OpcUaServer:
         self.namespace_idx = None
 
         self.plant = None
-        self.historicos = None
+        self.historic = None
 
         self.active_screen_node = None
         self.active_screen_name_node = None
@@ -193,7 +198,7 @@ class OpcUaServer:
 
         # HISTÓRICOS COMPACTADOS:
         # Cada TagN é registrada como uma String simples (ocupa 1 tag no Elipse)
-        self.historicos = await self.plant.add_object(
+        self.historic = await self.plant.add_object(
             self.namespace_idx,
             "Historicos",
         )
@@ -209,7 +214,7 @@ class OpcUaServer:
         for index in range(1, max_history_tags + 1):
             tag_name = f"Tag{index}"
 
-            node = await self.historicos.add_variable(
+            node = await self.historic.add_variable(
                 self.namespace_idx,
                 tag_name,
                 ua.Variant("", ua.VariantType.String),

@@ -13,6 +13,8 @@ class Dashboard:
 
         self.routes()
 
+        print("Acesse por http://localhost:5000")
+
     def routes(self):
 
         @self.app.route("/")
