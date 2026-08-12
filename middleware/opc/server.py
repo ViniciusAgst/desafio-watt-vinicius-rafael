@@ -1,5 +1,4 @@
 import asyncio
-import json
 import threading
 from typing import Optional
 
@@ -7,8 +6,8 @@ from asyncua import Server, ua
 
 
 class OpcUaServer:
-
-    HISTORY_SIZE = 100
+    # Quantidade fixa de pontos do histórico recuperados do StorageManager
+    HISTORY_RETENTION_COUNT = 100
 
     SCREEN_MAIN = 1
     SCREEN_SUBSTATION = 2
@@ -23,6 +22,7 @@ class OpcUaServer:
                 "ExtruderPower": ("extruder", "power_kw"),
                 "CompressorPower": ("aircompressor", "power_kw"),
             },
+            # Tela principal não tem histórico dinâmico associado.
         },
         SCREEN_SUBSTATION: {
             "name": "TelaSubestacao",
@@ -32,7 +32,6 @@ class OpcUaServer:
                 "ActivePower": ("grid", "active_power_kw"),
             },
             "history": {
-                "timestamp": ("grid", "timestamp"),
                 "tags": [
                     ("Voltage", "grid", "voltage"),
                     ("PowerFactor", "grid", "power_factor"),
@@ -48,7 +47,6 @@ class OpcUaServer:
                 "Power": ("aircompressor", "power_kw"),
             },
             "history": {
-                "timestamp": ("aircompressor", "timestamp"),
                 "tags": [
                     ("Current", "aircompressor", "current"),
                     ("PowerFactor", "aircompressor", "power_factor"),
@@ -64,7 +62,6 @@ class OpcUaServer:
                 "Temperature": ("extruder", "panel_temperature"),
             },
             "history": {
-                "timestamp": ("extruder", "timestamp"),
                 "tags": [
                     ("THD", "extruder", "current_thd"),
                     ("Power", "extruder", "power_kw"),
@@ -75,10 +72,10 @@ class OpcUaServer:
     }
 
     def __init__(
-        self,
-        storage,
-        endpoint: str = "opc.tcp://0.0.0.0:4840",
-        update_interval: float = 1.0,
+            self,
+            storage,
+            endpoint: str = "opc.tcp://0.0.0.0:4840",
+            update_interval: float = 1.0,
     ):
         self.storage = storage
         self.endpoint = endpoint
@@ -194,28 +191,30 @@ class OpcUaServer:
                 )
                 self.screen_nodes[screen_id][tag_name] = node
 
-        # HISTÓRICOS: Cada Tag1, Tag2, etc., é uma Tag String contendo JSON de um único array
+        # HISTÓRICOS COMPACTADOS:
+        # Cada TagN é registrada como uma String simples (ocupa 1 tag no Elipse)
         self.historicos = await self.plant.add_object(
             self.namespace_idx,
             "Historicos",
         )
 
         max_history_tags = max(
-            len(config.get("history", {}).get("tags", [])) + 1
-            for config in self.SCREEN_CONFIG.values()
+            (
+                len(config.get("history", {}).get("tags", []))
+                for config in self.SCREEN_CONFIG.values()
+            ),
+            default=0,
         )
-
-        default_empty_json = json.dumps([0.0] * self.HISTORY_SIZE)
 
         for index in range(1, max_history_tags + 1):
             tag_name = f"Tag{index}"
 
-            # Cria nó como STRING simples (Escalar)
             node = await self.historicos.add_variable(
                 self.namespace_idx,
                 tag_name,
-                ua.Variant(default_empty_json, ua.VariantType.String),
+                ua.Variant("", ua.VariantType.String),
             )
+
             self.history_nodes[tag_name] = node
 
     async def _update(self):
@@ -240,7 +239,7 @@ class OpcUaServer:
         self.current_screen = screen_id
 
         await self._update_scalars()
-        await self._update_history(screen_id)
+        await self._update_dynamic_history(screen_id)
 
     async def _update_scalars(self):
         sources = set()
@@ -248,7 +247,7 @@ class OpcUaServer:
             for source, _ in config["scalars"].values():
                 sources.add(source)
 
-        data_cache = await self._load_data(sources)
+        data_cache = await self._load_data(sources, limit=1)
 
         for screen_id, config in self.SCREEN_CONFIG.items():
             for tag_name, (source, field) in config["scalars"].items():
@@ -257,63 +256,58 @@ class OpcUaServer:
                 node = self.screen_nodes[screen_id][tag_name]
                 await self._write_scalar(node, value)
 
-    async def _update_history(self, screen_id: int):
+    async def _update_dynamic_history(self, screen_id: int):
         config = self.SCREEN_CONFIG[screen_id]
         history_config = config.get("history")
 
         if history_config is None:
-            empty_json = json.dumps([0.0] * self.HISTORY_SIZE)
-            for node in self.history_nodes.values():
-                await node.write_value(
-                    ua.Variant(empty_json, ua.VariantType.String)
-                )
+            for tag_name, node in self.history_nodes.items():
+                await node.write_value(ua.Variant("", ua.VariantType.String))
             return
 
-        timestamp_source, timestamp_field = history_config["timestamp"]
-        sources = {timestamp_source}
+        sources = {source for _, source, _ in history_config["tags"]}
 
-        for _, source, _ in history_config["tags"]:
-            sources.add(source)
+        # Puxa diretamente os 100 últimos registros via StorageManager (Cache + Postgres)
+        data_cache = await self._load_data(sources, limit=self.HISTORY_RETENTION_COUNT)
 
-        data_cache = await self._load_data(sources)
+        used_tags = set()
 
-        # Tag1 = Timestamp
-        timestamp_data = data_cache.get(timestamp_source, [])
-        timestamps = self._get_history(timestamp_data, timestamp_field)
-        await self.history_nodes["Tag1"].write_value(
-            ua.Variant(json.dumps(timestamps), ua.VariantType.String)
-        )
-
-        active_tags = {"Tag1"}
-
-        # Tag2, Tag3, Tag4 = Tags de Dados da Tela Ativa
         for index, (_, source, field) in enumerate(
-            history_config["tags"], start=2
+                history_config["tags"], start=1
         ):
             tag_name = f"Tag{index}"
-            active_tags.add(tag_name)
+            used_tags.add(tag_name)
 
             data = data_cache.get(source, [])
-            values = self._get_history(data, field)
+
+            # Extrai os valores do campo configurado de todos os registros obtidos
+            values_list = []
+            for item in data:
+                val = item.get(field, 0.0)
+                try:
+                    values_list.append(float(val) if val is not None else 0.0)
+                except (TypeError, ValueError):
+                    values_list.append(0.0)
+
+            # Transforma a lista de até 100 elementos em uma única String CSV
+            csv_string = ",".join(f"{val:.2f}" for val in values_list)
 
             await self.history_nodes[tag_name].write_value(
-                ua.Variant(json.dumps(values), ua.VariantType.String)
+                ua.Variant(csv_string, ua.VariantType.String)
             )
 
-        # Zera tags que não estiverem sendo utilizadas pela tela atual
-        empty_json = json.dumps([0.0] * self.HISTORY_SIZE)
+        # Se a tela atual usar menos tags que o máximo (ex: usa apenas Tag1 e Tag2), zera as demais
         for tag_name, node in self.history_nodes.items():
-            if tag_name not in active_tags:
-                await node.write_value(
-                    ua.Variant(empty_json, ua.VariantType.String)
-                )
+            if tag_name not in used_tags:
+                await node.write_value(ua.Variant("", ua.VariantType.String))
 
-    async def _load_data(self, sources):
+    async def _load_data(self, sources, limit: int = 1):
         data_cache = {}
         for source in sources:
             try:
+                # Chama o método get_data do StorageManager
                 data_cache[source] = self.storage.get_data(
-                    source, limit=self.HISTORY_SIZE
+                    source, limit=limit
                 )
             except Exception as exception:
                 print(
@@ -333,27 +327,6 @@ class OpcUaServer:
             return float(value)
         except (TypeError, ValueError):
             return 0.0
-
-    def _get_history(self, data: list, field: str) -> list:
-        if not data:
-            return [0.0] * self.HISTORY_SIZE
-
-        values = []
-        for item in data[-self.HISTORY_SIZE:]:
-            value = item.get(field, 0.0)
-            if value is None:
-                value = 0.0
-            try:
-                value = float(value)
-            except (TypeError, ValueError):
-                value = 0.0
-            values.append(value)
-
-        if len(values) < self.HISTORY_SIZE:
-            missing = self.HISTORY_SIZE - len(values)
-            values = [0.0] * missing + values
-
-        return values
 
     @staticmethod
     async def _write_scalar(node, value):
