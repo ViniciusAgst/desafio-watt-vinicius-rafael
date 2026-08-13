@@ -1,11 +1,7 @@
-# === Middleware ===
-asyncua==2.0.1          # servidor OPC UA (middleware/opc/server.py)
-psycopg2-binary==2.9.12 # driver PostgreSQL (middleware/storage/postgres.py)
-paho-mqtt==2.1.0        # cliente MQTT (usado por middleware e simulator)
-
-# === Simulator ===
-Flask==3.1.3            # dashboard web (simulator/dashboard.py)
-
-# Observação: as demais bibliotecas usadas no projeto (json, sqlite3, queue,
-# threading, asyncio, time, random, logging, abc, enum, typing) fazem parte
-# da biblioteca padrão do Python e não precisam ser instaladas.
+asyncua==2.0.1
+buffer==0.2.1
+Flask==3.1.3
+mqtt-client==1.6.1
+paho-mqtt==2.1.0
+postgres==4.0
+psycopg2-binary==2.9.12
