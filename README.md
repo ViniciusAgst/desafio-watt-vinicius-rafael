@@ -67,7 +67,7 @@ a string de conexão (`dsn`) em `middleware/main.py`.
 
 1. Clone o repositório:
    ```bash
-   git clone <url-do-repositorio>
+   git clone https://github.com/ViniciusAgst/desafio-watt-vinicius-rafael.git
    cd desafio-watt-vinicius-rafael-main
    ```
 
