@@ -90,10 +90,26 @@ de iniciar as aplicações abaixo. Abra dois terminais (um para cada parte).
 
 ### 1. Simulador (gera os dados e sobe o dashboard)
 
-Precisa ser executado **de dentro da pasta `simulator/`**:
+Desde que o módulo `common/logger.py` foi adicionado na raiz do projeto, o
+simulador precisa ser executado **de dentro da pasta `simulator/`, mas com a
+raiz do projeto incluída no `PYTHONPATH`** (os imports de `assets`,
+`connection` e `dashboard` continuam relativos à própria pasta `simulator/`,
+enquanto `common` é importado a partir da raiz):
 
 ```bash
 cd simulator
+PYTHONPATH=.. python main.py          # Linux/macOS
+```
+
+```powershell
+cd simulator
+$env:PYTHONPATH = ".."                # Windows (PowerShell)
+python main.py
+```
+
+```cmd
+cd simulator
+set PYTHONPATH=..                      :: Windows (cmd)
 python main.py
 ```
 
@@ -102,7 +118,9 @@ python main.py
 
 ### 2. Middleware (consome, persiste e expõe via OPC UA)
 
-Precisa ser executado **a partir da raiz do projeto**:
+Continua sendo executado **a partir da raiz do projeto** (aqui não precisa de
+`PYTHONPATH` extra, pois rodar com `-m` já inclui a raiz automaticamente, e é
+de onde o `common` também é importado):
 
 ```bash
 python -m middleware.main
@@ -119,6 +137,8 @@ python -m middleware.main
 
 ```
 desafio-watt-vinicius-rafael-main/
+├── common/
+│   └── logger.py                  # logging simples (info/warn/error/debug), usado por middleware e simulator
 ├── middleware/
 │   ├── main.py                    # ponto de entrada do middleware
 │   ├── connection/mqttclient.py   # assinante MQTT
@@ -142,9 +162,13 @@ desafio-watt-vinicius-rafael-main/
 
 ## Solução de problemas
 
-- **`ModuleNotFoundError` ao rodar o simulador**: confirme que está rodando
-  de dentro da pasta `simulator/` (`cd simulator && python main.py`), pois os
-  imports são relativos a essa pasta.
+- **`ModuleNotFoundError: No module named 'common'` ao rodar o simulador**:
+  falta incluir a raiz do projeto no `PYTHONPATH`. Rode com
+  `PYTHONPATH=.. python main.py` (Linux/macOS) — veja os comandos completos
+  para cada terminal na seção "Como executar".
+- **`ModuleNotFoundError: No module named 'assets'` (ou `connection`,
+  `dashboard`) ao rodar o simulador**: confirme que está rodando de **dentro
+  da pasta `simulator/`** (esses imports são relativos a ela).
 - **`ModuleNotFoundError` ao rodar o middleware**: confirme que está rodando
   a partir da **raiz do projeto** com `python -m middleware.main` (não
   `python middleware/main.py`).
