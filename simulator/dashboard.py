@@ -1,5 +1,7 @@
-
 from flask import Flask, render_template, jsonify
+
+from common.logger import info
+
 
 class Dashboard:
 
@@ -12,8 +14,6 @@ class Dashboard:
         self.app = Flask(__name__)
 
         self.routes()
-
-        print("Acesse por http://localhost:5000")
 
     def routes(self):
 
@@ -52,9 +52,6 @@ class Dashboard:
             return jsonify({"status": "ok", "device": "grid", "action": "stop"})
 
 
-
-
-
         @self.app.post("/compressor/start")
         def compressor_start():
             self.compressor.start_fault()
@@ -64,8 +61,6 @@ class Dashboard:
         def compressor_stop():
             self.compressor.stop_fault()
             return jsonify({"status": "ok", "device": "compressor", "action": "stop"})
-
-
 
 
         @self.app.post("/extruder/start")
@@ -79,6 +74,10 @@ class Dashboard:
             return jsonify({"status": "ok", "device": "extruder", "action": "stop"})
 
 
-
     def start(self):
-        self.app.run(host="0.0.0.0", port=5000)
+        info("DASHBOARD", "Dashboard iniciando em http://localhost:5000")
+
+        self.app.run(
+            host="0.0.0.0",
+            port=5000
+        )

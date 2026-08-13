@@ -4,9 +4,10 @@ from typing import Optional
 
 from asyncua import Server, ua
 
+from common.logger import info, warn, error, debug
+
 
 class OpcUaServer:
-    # Quantidade fixa de pontos do histórico recuperados do StorageManager
     HISTORY_RETENTION_COUNT = 100
 
     SCREEN_MAIN = 1
@@ -23,7 +24,6 @@ class OpcUaServer:
                 "ExtruderPower": ("extruder", "power_kw"),
                 "CompressorPower": ("aircompressor", "power_kw"),
             },
-            # Tela principal não tem histórico dinâmico associado.
         },
         SCREEN_SUBSTATION: {
             "name": "TelaSubestacao",
@@ -72,7 +72,7 @@ class OpcUaServer:
         },
         SCREEN_ALARM: {
             "name": "TelaAlarme",
-            "scalars": { },
+            "scalars": {},
         },
     }
 
@@ -106,48 +106,70 @@ class OpcUaServer:
 
     def start(self):
         if self._thread is not None and self._thread.is_alive():
+            warn("OPC", "Servidor OPC UA já está em execução")
             return
 
         self._stop_event.clear()
+
         self._thread = threading.Thread(
             target=self._thread_main,
             name="OPC-UA-Server",
             daemon=True,
         )
+
         self._thread.start()
 
     def stop(self):
+        info("OPC", "Encerrando servidor OPC UA")
+
         self._stop_event.set()
+
         if self._loop is not None:
             self._loop.call_soon_threadsafe(lambda: None)
+
         if self._thread is not None:
             self._thread.join(timeout=5)
+
+        info("OPC", "Servidor OPC UA encerrado")
 
     def _thread_main(self):
         self._loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self._loop)
+
         try:
             self._loop.run_until_complete(self._run())
+
         except Exception as exception:
-            print(f"Servidor OPC UA encerrado com erro: {exception}")
+            error(
+                "OPC",
+                f"Servidor OPC UA encerrado com erro: {exception}"
+            )
+
         finally:
             self._loop.close()
             self._loop = None
 
     async def _run(self):
         self.server = Server()
+
         await self._init()
-        print(f"OPC UA Server iniciado: {self.endpoint}")
+
+        info("OPC", f"Servidor OPC UA ativo em {self.endpoint}")
 
         async with self.server:
             while not self._stop_event.is_set():
                 try:
                     await self._update()
+
                 except Exception as exception:
-                    print(f"Erro durante atualização OPC UA: {exception}")
+                    error(
+                        "OPC",
+                        f"Erro durante atualização: {exception}"
+                    )
+
                 await asyncio.sleep(self.update_interval)
 
-        print("OPC UA Server encerrado")
+        debug("OPC", "Loop do servidor finalizado")
 
     async def _init(self):
         await self.server.init()
@@ -158,6 +180,7 @@ class OpcUaServer:
         )
 
         objects = self.server.nodes.objects
+
         self.plant = await objects.add_object(
             self.namespace_idx,
             "IndustrialSimulator",
@@ -168,6 +191,7 @@ class OpcUaServer:
             "ActiveScreenID",
             ua.Variant(self.SCREEN_MAIN, ua.VariantType.Int32),
         )
+
         await self.active_screen_node.set_writable()
 
         self.active_screen_name_node = await self.plant.add_variable(
@@ -179,7 +203,6 @@ class OpcUaServer:
             ),
         )
 
-        # Variáveis escalares por tela
         for screen_id, config in self.SCREEN_CONFIG.items():
             screen_node = await self.plant.add_object(
                 self.namespace_idx,
@@ -194,10 +217,9 @@ class OpcUaServer:
                     tag_name,
                     ua.Variant(0.0, ua.VariantType.Double),
                 )
+
                 self.screen_nodes[screen_id][tag_name] = node
 
-        # HISTÓRICOS COMPACTADOS:
-        # Cada TagN é registrada como uma String simples (ocupa 1 tag no Elipse)
         self.historic = await self.plant.add_object(
             self.namespace_idx,
             "Historicos",
@@ -222,21 +244,34 @@ class OpcUaServer:
 
             self.history_nodes[tag_name] = node
 
+        debug(
+            "OPC",
+            f"Namespace configurado: IndustrialSimulator"
+        )
+
     async def _update(self):
         screen_id = await self.active_screen_node.read_value()
 
         try:
             screen_id = int(screen_id)
+
         except (TypeError, ValueError):
             screen_id = self.SCREEN_MAIN
 
         if screen_id not in self.SCREEN_CONFIG:
+            warn(
+                "OPC",
+                f"Tela inválida recebida: {screen_id} - usando tela principal"
+            )
+
             screen_id = self.SCREEN_MAIN
+
             await self.active_screen_node.write_value(
                 ua.Variant(screen_id, ua.VariantType.Int32)
             )
 
         screen_name = self.SCREEN_CONFIG[screen_id]["name"]
+
         await self.active_screen_name_node.write_value(
             ua.Variant(screen_name, ua.VariantType.String)
         )
@@ -248,6 +283,7 @@ class OpcUaServer:
 
     async def _update_scalars(self):
         sources = set()
+
         for config in self.SCREEN_CONFIG.values():
             for source, _ in config["scalars"].values():
                 sources.add(source)
@@ -259,6 +295,7 @@ class OpcUaServer:
                 data = data_cache.get(source, [])
                 value = self._get_latest_value(data, field)
                 node = self.screen_nodes[screen_id][tag_name]
+
                 await self._write_scalar(node, value)
 
     async def _update_dynamic_history(self, screen_id: int):
@@ -267,69 +304,98 @@ class OpcUaServer:
 
         if history_config is None:
             for tag_name, node in self.history_nodes.items():
-                await node.write_value(ua.Variant("", ua.VariantType.String))
+                await node.write_value(
+                    ua.Variant("", ua.VariantType.String)
+                )
+
             return
 
-        sources = {source for _, source, _ in history_config["tags"]}
+        sources = {
+            source
+            for _, source, _
+            in history_config["tags"]
+        }
 
-        # Puxa diretamente os 100 últimos registros via StorageManager (Cache + Postgres)
-        data_cache = await self._load_data(sources, limit=self.HISTORY_RETENTION_COUNT)
+        data_cache = await self._load_data(
+            sources,
+            limit=self.HISTORY_RETENTION_COUNT
+        )
 
         used_tags = set()
 
         for index, (_, source, field) in enumerate(
-                history_config["tags"], start=1
+                history_config["tags"],
+                start=1
         ):
             tag_name = f"Tag{index}"
             used_tags.add(tag_name)
 
             data = data_cache.get(source, [])
 
-            # Extrai os valores do campo configurado de todos os registros obtidos
             values_list = []
+
             for item in data:
                 val = item.get(field, 0.0)
+
                 try:
-                    values_list.append(float(val) if val is not None else 0.0)
+                    values_list.append(
+                        float(val) if val is not None else 0.0
+                    )
+
                 except (TypeError, ValueError):
                     values_list.append(0.0)
 
-            # Transforma a lista de até 100 elementos em uma única String CSV
-            csv_string = ",".join(f"{val:.2f}" for val in values_list)
-
-            await self.history_nodes[tag_name].write_value(
-                ua.Variant(csv_string, ua.VariantType.String)
+            csv_string = ",".join(
+                f"{val:.2f}"
+                for val in values_list
             )
 
-        # Se a tela atual usar menos tags que o máximo (ex: usa apenas Tag1 e Tag2), zera as demais
+            await self.history_nodes[tag_name].write_value(
+                ua.Variant(
+                    csv_string,
+                    ua.VariantType.String
+                )
+            )
+
         for tag_name, node in self.history_nodes.items():
             if tag_name not in used_tags:
-                await node.write_value(ua.Variant("", ua.VariantType.String))
+                await node.write_value(
+                    ua.Variant("", ua.VariantType.String)
+                )
 
     async def _load_data(self, sources, limit: int = 1):
         data_cache = {}
+
         for source in sources:
             try:
-                # Chama o método get_data do StorageManager
                 data_cache[source] = self.storage.get_data(
-                    source, limit=limit
+                    source,
+                    limit=limit
                 )
+
             except Exception as exception:
-                print(
-                    f"Erro ao obter dados do StorageManager: {source}: {exception}"
+                error(
+                    "OPC",
+                    f"Erro ao obter dados ({source}): {exception}"
                 )
+
                 data_cache[source] = []
+
         return data_cache
 
     @staticmethod
     def _get_latest_value(data: list, field: str):
         if not data:
             return 0.0
+
         value = data[-1].get(field, 0.0)
+
         if value is None:
             return 0.0
+
         try:
             return float(value)
+
         except (TypeError, ValueError):
             return 0.0
 
@@ -337,9 +403,13 @@ class OpcUaServer:
     async def _write_scalar(node, value):
         try:
             value = float(value)
+
         except (TypeError, ValueError):
             value = 0.0
 
         await node.write_value(
-            ua.Variant(value, ua.VariantType.Double)
+            ua.Variant(
+                value,
+                ua.VariantType.Double
+            )
         )

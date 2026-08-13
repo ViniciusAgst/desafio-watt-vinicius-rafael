@@ -1,6 +1,7 @@
-
 import psycopg2
 import psycopg2.extras
+
+from common.logger import info, warn, error, debug
 
 
 class PostgresStorage:
@@ -14,12 +15,14 @@ class PostgresStorage:
         try:
             self._conn = psycopg2.connect(self.dsn)
             self._conn.autocommit = True
+
             self._ensure_schema()
-            print("[Postgres] Conectado em %s", self._safe_dsn())
+
+            info("POSTGRES", f"Conectado em {self._safe_dsn()}")
             return True
 
         except Exception as exc:
-            print("[Postgres] Indisponível: %s", exc)
+            warn("POSTGRES", f"Indisponível: {exc}")
             self._conn = None
             return False
 
@@ -27,14 +30,16 @@ class PostgresStorage:
     def _safe_dsn(self) -> str:
         return self.dsn.split("password=")[0] + "password=***"
 
+
     def _get_conn(self):
         if self._conn is None or self._conn.closed:
             raise ConnectionError("Sem conexão ativa com o Postgres")
         return self._conn
 
 
-
     def _ensure_schema(self):
+        debug("POSTGRES", "Verificando schema")
+
         with self._conn.cursor() as cur:
             cur.execute(
                 """
@@ -66,9 +71,12 @@ class PostgresStorage:
                 """
             )
 
+        debug("POSTGRES", "Schema verificado")
+
 
     def upsert_asset(self, name: str, tipo: str, dados_estaticos: dict = None) -> int:
         conn = self._get_conn()
+
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -79,10 +87,17 @@ class PostgresStorage:
                 """,
                 (name, tipo, psycopg2.extras.Json(dados_estaticos or {})),
             )
-            return cur.fetchone()[0]
+
+            asset_id = cur.fetchone()[0]
+
+        debug("POSTGRES", f"Ativo registrado: {name} ({tipo})")
+
+        return asset_id
+
 
     def insert_measurement(self, ativo_id: int, timestamp: float, state: str, dados: dict) -> None:
         conn = self._get_conn()
+
         with conn.cursor() as cur:
             cur.execute(
                 """
@@ -92,10 +107,12 @@ class PostgresStorage:
                 (ativo_id, timestamp, state, psycopg2.extras.Json(dados)),
             )
 
+        debug("POSTGRES", f"Medida inserida: ativo={ativo_id}")
 
 
     def get_measurements(self, tipo: str, limit: int = 100, before_timestamp: float = None) -> list:
         conn = self._get_conn()
+
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             if before_timestamp is not None:
                 cur.execute(
@@ -121,22 +138,37 @@ class PostgresStorage:
                     """,
                     (tipo, limit),
                 )
+
             rows = cur.fetchall()
 
         result = []
-        for row in reversed(rows):  # devolve em ordem crescente (mais antigo -> mais novo)
-            item = {"timestamp": row["timestamp"], "name": row["name"], "state": row["state"]}
+
+        for row in reversed(rows):
+            item = {
+                "timestamp": row["timestamp"],
+                "name": row["name"],
+                "state": row["state"]
+            }
+
             item.update(row["dados"])
             result.append(item)
-        return result
 
+        debug(
+            "POSTGRES",
+            f"Consulta realizada: tipo={tipo}, registros={len(result)}"
+        )
+
+        return result
 
 
     def is_available(self) -> bool:
         try:
             conn = self._get_conn()
+
             with conn.cursor() as cur:
                 cur.execute("SELECT 1;")
+
             return True
+
         except Exception:
             return False

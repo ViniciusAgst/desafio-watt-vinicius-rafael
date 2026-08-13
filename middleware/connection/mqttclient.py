@@ -2,6 +2,7 @@ import json
 
 import paho.mqtt.client as mqtt
 
+from common.logger import debug
 from middleware.storage.storagemanager import StorageManager
 
 class MQTTClient:
@@ -41,14 +42,10 @@ class MQTTClient:
         client.subscribe("simulator/extruder", qos=0)
         client.subscribe("simulator/aircompressor", qos=0)
 
-        print("[MQTT] Conectado")
-
 
 
     def _on_disconnect(self, client, userdata, rc):
         self.connected = False
-
-        print("[MQTT] Desconectado")
 
 
 
@@ -63,4 +60,7 @@ class MQTTClient:
 
         self.storage.put(source, payload)
 
-        print("[MQTT] Mensagem processada [%s]: %s", source, payload)
+        debug(
+            "MQTT",
+            f"Mensagem processada: fonte={source}, registros={payload}"
+        )

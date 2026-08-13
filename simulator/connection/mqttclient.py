@@ -1,9 +1,11 @@
 import json
-import logging
 import threading
 import time
 
 import paho.mqtt.client as mqtt
+
+from common.logger import warn, error, debug
+
 
 class MQTTClient:
 
@@ -43,22 +45,29 @@ class MQTTClient:
     def publish(self, topic: str, payload: dict):
 
         if not self.connected:
+            warn("MQTT", f"Publicação ignorada, sem conexão: {topic}")
             return
 
-        self.client.publish(
-            topic,
-            json.dumps(payload),
-            qos=0,
-            retain=False
-        )
+        try:
+            self.client.publish(
+                topic,
+                json.dumps(payload),
+                qos=0,
+                retain=False
+            )
+
+            debug("MQTT", f"Publicado: {topic}")
+
+        except Exception as e:
+            error("MQTT", f"Erro ao publicar em {topic}: {e}")
+
 
     def _on_connect(self, client, userdata, flags, reason_code, properties):
         self.connected = True
-
-        print("[MQTT] Conectado")
 
 
     def _on_disconnect(self, client, userdata, flags, reason_code, properties):
         self.connected = False
 
-        print("[MQTT] Desconectado")
+        if self.running:
+            warn("MQTT", "Conexão perdida")

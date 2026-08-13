@@ -1,13 +1,15 @@
-
 import threading
 
+from common.logger import info, warn, error, debug
 from middleware.storage.buffer import SQLiteBuffer
 from middleware.storage.cache import DataCache
 from middleware.storage.postgres import PostgresStorage
 
 _CAMPOS_COMUNS = ("name", "state", "timestamp")
 
+
 class StorageManager:
+
     def __init__(
         self,
         cache: DataCache,
@@ -24,26 +26,36 @@ class StorageManager:
         self._postgres_available = False
 
         self._stop_event = threading.Event()
-        self._flush_thread = threading.Thread(target=self._flush_loop, daemon=True)
-
+        self._flush_thread = threading.Thread(
+            target=self._flush_loop,
+            daemon=True
+        )
 
 
     def start(self):
         self._postgres_available = self.postgres.try_connect()
 
         if self._postgres_available:
-            print("[Storage] Postgres disponível")
+            info("STORAGE", "Usando PostGres...")
+
         else:
-            print("[Storage] Postgres indisponível na inicialização - gravando no buffer SQLite até ele voltar")
+            warn(
+                "STORAGE",
+                "Postgres indisponível - usando buffer SQLite"
+            )
 
         self._flush_thread.start()
 
+        debug("STORAGE", "Thread de sincronização iniciada")
 
 
     def stop(self):
+        info("STORAGE", "Encerrando Storage Manager")
+
         self._stop_event.set()
         self._flush_thread.join(timeout=5)
 
+        info("STORAGE", "Storage Manager encerrado")
 
 
     def put(self, source: str, data: dict) -> None:
@@ -52,45 +64,87 @@ class StorageManager:
         name = data.get("name", source)
         state = data.get("state")
         timestamp = data.get("timestamp")
-        dados_extra = {k: v for k, v in data.items() if k not in _CAMPOS_COMUNS}
 
+        dados_extra = {
+            k: v
+            for k, v in data.items()
+            if k not in _CAMPOS_COMUNS
+        }
 
         if not self._postgres_available:
-            self.buffer.add(name, source, timestamp, state, dados_extra)
-            return
+            self.buffer.add(
+                name,
+                source,
+                timestamp,
+                state,
+                dados_extra
+            )
 
+            debug(
+                "STORAGE",
+                f"Medida armazenada no buffer: {name}"
+            )
+
+            return
 
         try:
             ativo_id = self._ensure_asset(name, source)
-            self.postgres.insert_measurement(ativo_id, timestamp, state, dados_extra)
 
+            self.postgres.insert_measurement(
+                ativo_id,
+                timestamp,
+                state,
+                dados_extra
+            )
 
         except Exception as exc:
-            print("[Storage] Falha ao gravar no Postgres (%s) - usando buffer", exc)
+            warn(
+                "STORAGE",
+                f"Falha no Postgres - usando buffer: {exc}"
+            )
 
             self._postgres_available = False
-            self.buffer.add(name, source, timestamp, state, dados_extra)
 
+            self.buffer.add(
+                name,
+                source,
+                timestamp,
+                state,
+                dados_extra
+            )
 
 
     def _ensure_asset(self, name: str, tipo: str) -> int:
         if name not in self._asset_ids:
-            self._asset_ids[name] = self.postgres.upsert_asset(name, tipo)
+            self._asset_ids[name] = self.postgres.upsert_asset(
+                name,
+                tipo
+            )
+
+            debug(
+                "STORAGE",
+                f"Ativo registrado: {name}"
+            )
+
         return self._asset_ids[name]
 
 
     def _flush_loop(self):
         while not self._stop_event.is_set():
+
             if not self._postgres_available:
                 self._postgres_available = self.postgres.try_connect()
+
                 if self._postgres_available:
-                    print("[Storage] Postgres voltou - sincronizando buffer local...")
+                    info(
+                        "STORAGE",
+                        "Postgres voltou - sincronizando buffer"
+                    )
 
             if self._postgres_available:
                 self._flush_buffer()
 
             self._stop_event.wait(self.flush_interval)
-
 
 
     def _flush_buffer(self):
@@ -99,21 +153,38 @@ class StorageManager:
         if not pendentes:
             return
 
+        debug(
+            "STORAGE",
+            f"Iniciando sincronização de {len(pendentes)} registro(s)"
+        )
+
         try:
             for row in pendentes:
-                ativo_id = self._ensure_asset(row["name"], row["tipo"])
+                ativo_id = self._ensure_asset(
+                    row["name"],
+                    row["tipo"]
+                )
 
                 self.postgres.insert_measurement(
-                    ativo_id, row["timestamp"], row["state"], row["dados"]
+                    ativo_id,
+                    row["timestamp"],
+                    row["state"],
+                    row["dados"]
                 )
 
             self.buffer.clear()
-            print(
-                "[Storage] %d registro(s) sincronizados do buffer para o Postgres",
-                len(pendentes),
+
+            info(
+                "STORAGE",
+                f"{len(pendentes)} registro(s) sincronizados"
             )
+
         except Exception as exc:
-            print("[Storage] Postgres caiu de novo durante a sincronização: %s", exc)
+            warn(
+                "STORAGE",
+                f"Postgres caiu durante sincronização: {exc}"
+            )
+
             self._postgres_available = False
 
 
@@ -124,14 +195,26 @@ class StorageManager:
             return cached[-limit:]
 
         faltam = limit - len(cached)
-        timestamp_mais_antigo = cached[0]["timestamp"] if cached else None
+
+        timestamp_mais_antigo = (
+            cached[0]["timestamp"]
+            if cached
+            else None
+        )
 
         try:
             historico = self.postgres.get_measurements(
-                source, limit=faltam, before_timestamp=timestamp_mais_antigo
+                source,
+                limit=faltam,
+                before_timestamp=timestamp_mais_antigo
             )
+
         except Exception as exc:
-            print("[Storage] Não foi possível completar com o Postgres: %s", exc)
+            debug(
+                "STORAGE",
+                f"Não foi possível consultar Postgres: {exc}"
+            )
+
             historico = []
 
         return historico + cached

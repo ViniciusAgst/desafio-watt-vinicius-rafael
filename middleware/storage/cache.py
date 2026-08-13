@@ -1,5 +1,8 @@
 import queue
 
+from common.logger import warn
+
+
 class DataCache:
 
     def __init__(self, maxsize: int = 1000):
@@ -16,7 +19,7 @@ class DataCache:
         q = self.queues.get(source)
 
         if q is None:
-            print("Fonte desconhecida: %s", source)
+            warn("CACHE", f"Fonte desconhecida: {source}")
             return
 
         if q.full():
