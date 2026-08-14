@@ -105,8 +105,12 @@ source venv/bin/activate
 
 **Windows:**
 
-```powershell
+```bash
 source venv\Scripts\activate
+```
+
+```powershell
+venv\Scripts\activate
 ```
 
 ### 3. Instale as dependências
@@ -159,6 +163,12 @@ Abra outro terminal e, a partir da pasta raiz do projeto:
 ```powershell
 cd middleware
 $env:PYTHONPATH = ".."
+python main.py
+```
+
+```bash
+cd middleware
+export PYTHONPATH=".."
 python main.py
 ```
 
