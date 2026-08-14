@@ -4,10 +4,10 @@ from logger import info, error
 
 from connection.mqttclient import MQTTClient
 from opc.server import OpcUaServer
-from storage.buffer import SQLiteBuffer
-from storage.cache import DataCache
-from storage.postgres import PostgresStorage
-from storage.storagemanager import StorageManager
+from middleware.storage.buffer import SQLiteBuffer
+from middleware.storage.cache import DataCache
+from middleware.storage.postgres import PostgresStorage
+from middleware.storage.storagemanager import StorageManager
 
 POSTGRES_CONFIG = {
     "dbname": "simulador",
