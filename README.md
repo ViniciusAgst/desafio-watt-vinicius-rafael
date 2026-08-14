@@ -56,7 +56,7 @@ psql -U postgres -c "CREATE DATABASE simulador;"
 > middleware na primeira conexão — não precisa rodar nenhum script de schema.
 
 Se sua senha/usuário do Postgres forem diferentes de `postgres`/`root`, ajuste
-a string de conexão (`dsn`) em `middleware/main.py`.
+nas configurações em `middleware/main.py`.
 
 > Caso o Postgres esteja indisponível no momento em que o middleware iniciar,
 > os dados são gravados automaticamente em um buffer local (`buffer.db`,
