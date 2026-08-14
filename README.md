@@ -90,27 +90,11 @@ de iniciar as aplicações abaixo. Abra dois terminais (um para cada parte).
 
 ### 1. Simulador (gera os dados e sobe o dashboard)
 
-Desde que o módulo `common/logger.py` foi adicionado na raiz do projeto, o
-simulador precisa ser executado **de dentro da pasta `simulator/`, mas com a
-raiz do projeto incluída no `PYTHONPATH`** (os imports de `assets`,
-`connection` e `dashboard` continuam relativos à própria pasta `simulator/`,
-enquanto `common` é importado a partir da raiz):
-
-```bash
-cd simulator
-PYTHONPATH=.. python main.py          # Linux/macOS
-```
+É necessário esta dentro da pasta do simulador, caso esteja na paste raiz do projeto:
 
 ```powershell
 cd simulator
-$env:PYTHONPATH = ".."                # Windows (PowerShell)
-python main.py
-```
-
-```cmd
-cd simulator
-set PYTHONPATH=..                      :: Windows (cmd)
-python main.py
+python main.py          
 ```
 
 - Publica dados a cada 1s nos tópicos MQTT `simulator/grid`, `simulator/aircompressor` e `simulator/extruder`.
@@ -118,12 +102,12 @@ python main.py
 
 ### 2. Middleware (consome, persiste e expõe via OPC UA)
 
-Continua sendo executado **a partir da raiz do projeto** (aqui não precisa de
-`PYTHONPATH` extra, pois rodar com `-m` já inclui a raiz automaticamente, e é
-de onde o `common` também é importado):
+É necessário esta dentro da pasta do middleware, caso esteja na paste raiz do projeto:
 
 ```bash
-python -m middleware.main
+cd middleware
+$env:PYTHONPATH = ".."
+python main.py
 ```
 
 - Conecta ao broker MQTT e assina os tópicos publicados pelo simulador.
@@ -137,12 +121,13 @@ python -m middleware.main
 
 ```
 desafio-watt-vinicius-rafael-main/
-├── common/
-│   └── logger.py                  # logging simples (info/warn/error/debug), usado por middleware e simulator
 ├── middleware/
 │   ├── main.py                    # ponto de entrada do middleware
-│   ├── connection/mqttclient.py   # assinante MQTT
-│   ├── opc/server.py              # servidor OPC UA
+│   ├── logger.py                  # logging simples (info/warn/error/debug), usado por middleware e simulator
+│   ├── connection   
+│   │   └── mqttclient.py          # assinante MQTT
+│   ├── opc   
+│   │   └── server.py              # servidor OPC UA
 │   └── storage/
 │       ├── cache.py               # cache em memória (fila por ativo)
 │       ├── buffer.py              # buffer local em SQLite (fallback)
@@ -150,8 +135,10 @@ desafio-watt-vinicius-rafael-main/
 │       └── storagemanager.py      # orquestra cache + postgres + buffer
 ├── simulator/
 │   ├── main.py                    # ponto de entrada do simulador
+│   ├── logger.py                  # logging simples (info/warn/error/debug), usado por middleware e simulator
 │   ├── dashboard.py                # dashboard Flask
-│   ├── connection/mqttclient.py   # publicador MQTT
+│   ├── connection   
+│   │   └── mqttclient.py          # publicador MQTT
 │   ├── assets/
 │   │   ├── device.py               # classe base + enum de estados
 │   │   └── devices/                # Grid, AirCompressor, Extruder
@@ -162,16 +149,9 @@ desafio-watt-vinicius-rafael-main/
 
 ## Solução de problemas
 
-- **`ModuleNotFoundError: No module named 'common'` ao rodar o simulador**:
-  falta incluir a raiz do projeto no `PYTHONPATH`. Rode com
-  `PYTHONPATH=.. python main.py` (Linux/macOS) — veja os comandos completos
-  para cada terminal na seção "Como executar".
 - **`ModuleNotFoundError: No module named 'assets'` (ou `connection`,
   `dashboard`) ao rodar o simulador**: confirme que está rodando de **dentro
   da pasta `simulator/`** (esses imports são relativos a ela).
-- **`ModuleNotFoundError` ao rodar o middleware**: confirme que está rodando
-  a partir da **raiz do projeto** com `python -m middleware.main` (não
-  `python middleware/main.py`).
 - **Middleware não conecta ao Postgres**: verifique se o serviço está no ar
   e se usuário/senha/porta em `middleware/main.py` batem com sua instalação.
   Enquanto isso, os dados continuam sendo gravados no `buffer.db` local.
