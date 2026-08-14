@@ -32,6 +32,7 @@ simulator (MQTT publisher) → broker MQTT → middleware (MQTT subscriber)
 Além do Python, o projeto depende de dois serviços externos rodando localmente:
 
 - **Python 3.10+**
+- **Elipse E3**
 - **Broker MQTT** (ex: [Mosquitto](https://mosquitto.org/download/)) escutando em `localhost:1883`
 - **PostgreSQL** escutando em `localhost:5432`, com um banco chamado `simulador`
   (usuário `postgres`, senha `root` — configurado em `middleware/main.py`)
