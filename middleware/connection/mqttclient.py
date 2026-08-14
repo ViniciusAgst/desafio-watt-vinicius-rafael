@@ -2,7 +2,7 @@ import json
 
 import paho.mqtt.client as mqtt
 
-from common.logger import debug
+from logger import debug
 from middleware.storage.storagemanager import StorageManager
 
 class MQTTClient:

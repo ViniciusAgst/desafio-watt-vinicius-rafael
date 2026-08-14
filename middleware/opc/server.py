@@ -4,7 +4,7 @@ from typing import Optional
 
 from asyncua import Server, ua
 
-from common.logger import info, warn, error, debug
+from logger import info, warn, error, debug
 
 
 class OpcUaServer:

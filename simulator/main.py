@@ -7,7 +7,7 @@ from assets.devices.extruder import Extruder
 from assets.devices.grid import Grid
 from connection.mqttclient import MQTTClient
 from dashboard import Dashboard
-from common.logger import info, error
+from logger import info, error
 
 
 def main():

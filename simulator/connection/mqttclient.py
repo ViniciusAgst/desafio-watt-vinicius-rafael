@@ -4,7 +4,7 @@ import time
 
 import paho.mqtt.client as mqtt
 
-from common.logger import warn, error, debug
+from logger import warn, error, debug
 
 
 class MQTTClient:

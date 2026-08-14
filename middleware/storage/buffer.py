@@ -2,7 +2,7 @@ import json
 import sqlite3
 import threading
 
-from common.logger import info, warn, error, debug
+from logger import info, warn, error, debug
 
 
 class SQLiteBuffer:

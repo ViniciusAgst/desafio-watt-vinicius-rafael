@@ -1,6 +1,6 @@
 from time import sleep
 
-from common.logger import info, error
+from logger import info, error
 
 from middleware.connection.mqttclient import MQTTClient
 from middleware.opc.server import OpcUaServer

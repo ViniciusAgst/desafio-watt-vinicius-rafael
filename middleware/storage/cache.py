@@ -1,6 +1,6 @@
 import queue
 
-from common.logger import warn
+from logger import warn
 
 
 class DataCache:

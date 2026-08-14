@@ -1,6 +1,6 @@
 import threading
 
-from common.logger import info, warn, error, debug
+from logger import info, warn, error, debug
 from middleware.storage.buffer import SQLiteBuffer
 from middleware.storage.cache import DataCache
 from middleware.storage.postgres import PostgresStorage

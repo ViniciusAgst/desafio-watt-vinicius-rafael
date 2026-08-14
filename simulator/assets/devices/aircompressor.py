@@ -3,7 +3,6 @@ import time
 
 from assets.device import Device, State
 
-
 class AirCompressor(Device):
 
     NOMINAL_CURRENT = 45.0
