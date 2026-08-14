@@ -1,7 +1,7 @@
 import psycopg2
 import psycopg2.extras
 
-from logger import info, warn, error, debug
+from logger import info, warn, debug
 
 
 class PostgresStorage:
