@@ -1,14 +1,10 @@
 # Desafio Watt — Simulador Industrial + Middleware
 
-Simulação de uma planta industrial (rede elétrica, compressor de ar e extrusora)
-que publica dados via **MQTT**, é consumida por um **middleware** que grava os
-dados em **PostgreSQL** (com buffer local em **SQLite** para quando o banco cai)
-e expõe tudo via um servidor **OPC UA**. O simulador também tem um **dashboard
-web** (Flask) para acompanhar e forçar falhas nos ativos.
+Simulação de uma planta industrial (rede elétrica, compressor de ar e extrusora) que publica dados via **MQTT**, é consumida por um **middleware** que grava os dados em **PostgreSQL** (com buffer local em **SQLite** para quando o banco cai) e expõe tudo via um servidor **OPC UA**. O simulador também possui um **dashboard web** (Flask) para acompanhar e forçar falhas nos ativos.
 
 ## Arquitetura
 
-```
+```text
 simulator/  → gera os dados dos ativos (Grid, AirCompressor, Extruder)
               e publica em tópicos MQTT (simulator/grid, .../aircompressor, .../extruder)
               + expõe um dashboard web em http://localhost:5000
@@ -16,34 +12,59 @@ simulator/  → gera os dados dos ativos (Grid, AirCompressor, Extruder)
 middleware/ → assina os tópicos MQTT, guarda os dados em cache (memória),
               persiste no PostgreSQL (ou no buffer SQLite se o Postgres
               estiver fora do ar) e expõe tudo via servidor OPC UA
-              em opc.tcp://localhost:4840
+
+supervisorio/ → projeto Elipse E3 responsável pela visualização dos dados
+                através do servidor OPC UA
 ```
 
 Fluxo de dados:
 
-```
-simulator (MQTT publisher) → broker MQTT → middleware (MQTT subscriber)
-    → cache em memória → PostgreSQL (ou buffer SQLite se offline)
-    → servidor OPC UA (para SCADA/Elipse, etc.)
+```text
+simulator (MQTT publisher)
+        ↓
+broker MQTT
+        ↓
+middleware (MQTT subscriber)
+        ↓
+cache em memória
+        ↓
+PostgreSQL
+(ou buffer SQLite se offline)
+        ↓
+servidor OPC UA
+        ↓
+Elipse E3 / SCADA
 ```
 
 ## Pré-requisitos
 
-Além do Python, o projeto depende de dois serviços externos rodando localmente:
+Além do Python, o projeto depende dos seguintes componentes:
 
-- **Python 3.10+**
-- **Elipse E3**
-- **Broker MQTT** (ex: [Mosquitto](https://mosquitto.org/download/)) escutando em `localhost:1883`
-- **PostgreSQL** escutando em `localhost:5432`, com um banco chamado `simulador`
-  (usuário `postgres`, senha `root` — configurado em `middleware/main.py`)
+* **Python 3.10+**
+* **Elipse E3**
+* **Broker MQTT** (ex: Mosquitto) escutando em `localhost:1883`
+* **PostgreSQL** escutando em `localhost:5432`
+* Banco PostgreSQL chamado `simulador`
+* Usuário PostgreSQL `postgres`
+* Senha PostgreSQL `root`
 
 ### Instalando o Mosquitto
 
-- **Windows**: baixe o instalador em https://mosquitto.org/download/
-- **Linux (Debian/Ubuntu)**: `sudo apt install mosquitto mosquitto-clients`
-- **macOS**: `brew install mosquitto`
+**Windows:** baixe o instalador no site oficial do Mosquitto.
 
-Depois de instalado, garanta que o serviço está rodando (por padrão já sobe na porta 1883).
+**Linux (Debian/Ubuntu):**
+
+```bash
+sudo apt install mosquitto mosquitto-clients
+```
+
+**macOS:**
+
+```bash
+brew install mosquitto
+```
+
+Depois de instalado, garanta que o serviço esteja rodando. Por padrão, o Mosquitto utiliza a porta `1883`.
 
 ### Criando o banco no PostgreSQL
 
@@ -53,111 +74,270 @@ Com o PostgreSQL instalado e rodando, crie o banco `simulador`:
 psql -U postgres -c "CREATE DATABASE simulador;"
 ```
 
-> As tabelas (`ativos` e `medicoes`) são criadas automaticamente pelo próprio
-> middleware na primeira conexão — não precisa rodar nenhum script de schema.
+> As tabelas (`ativos` e `medicoes`) são criadas automaticamente pelo próprio middleware na primeira conexão. Não é necessário executar nenhum script de schema.
 
-Se sua senha/usuário do Postgres forem diferentes de `postgres`/`root`, ajuste
-nas configurações em `middleware/main.py`.
+Se sua senha, usuário ou porta do PostgreSQL forem diferentes de `postgres`/`root`, ajuste as configurações em `middleware/main.py`.
 
-> Caso o Postgres esteja indisponível no momento em que o middleware iniciar,
-> os dados são gravados automaticamente em um buffer local (`buffer.db`,
-> SQLite) e sincronizados assim que o banco voltar a responder — não é
-> necessário nenhum passo extra para isso.
+> Caso o PostgreSQL esteja indisponível no momento em que o middleware iniciar, os dados serão gravados automaticamente em um buffer local (`buffer.db`, SQLite) e sincronizados assim que o banco voltar a responder.
 
 ## Instalação
 
-1. Clone o repositório:
-   ```bash
-   git clone https://github.com/ViniciusAgst/desafio-watt-vinicius-rafael.git
-   cd .\desafio-watt-vinicius-rafael\
-   ```
+### 1. Clone o repositório
 
-2. (Recomendado) Crie um ambiente virtual:
-   ```bash
-   python -m venv venv
-   source venv/bin/activate      # Linux/macOS
-   venv\Scripts\activate         # Windows
-   ```
+```powershell
+git clone https://github.com/ViniciusAgst/desafio-watt-vinicius-rafael.git
+cd .\desafio-watt-vinicius-rafael\
+```
 
-3. Instale as dependências:
-   ```bash
-   pip install -r requirements.txt
-   ```
+### 2. Crie um ambiente virtual
+
+Recomendado:
+
+```bash
+python -m venv venv
+```
+
+**Linux/macOS:**
+
+```bash
+source venv/bin/activate
+```
+
+**Windows:**
+
+```powershell
+venv\Scripts\activate
+```
+
+### 3. Instale as dependências
+
+```bash
+pip install -r requirements.txt
+```
 
 ## Como executar
 
-Certifique-se de que o **Mosquitto** e o **PostgreSQL** já estão rodando antes
-de iniciar as aplicações abaixo. Abra dois terminais (um para cada parte).
+A ordem recomendada para executar o projeto é:
 
-### 1. Simulador (gera os dados e sobe o dashboard)
+```text
+1. Mosquitto
+2. PostgreSQL
+3. Simulador
+4. Middleware
+5. Elipse E3
+```
 
-É necessário esta dentro da pasta do simulador, caso esteja na paste raiz do projeto:
+### 1. Simulador
+
+É necessário estar dentro da pasta `simulator`. Caso esteja na pasta raiz do projeto:
 
 ```powershell
 cd simulator
-python main.py          
+python main.py
 ```
 
-- Publica dados a cada 1s nos tópicos MQTT `simulator/grid`, `simulator/aircompressor` e `simulator/extruder`.
-- Dashboard web disponível em **http://localhost:5000**, com botões para forçar/parar falha em cada ativo.
+O simulador:
 
-### 2. Middleware (consome, persiste e expõe via OPC UA)
+* Publica dados a cada 1 segundo nos tópicos MQTT:
 
-É necessário esta dentro da pasta do middleware, caso esteja na paste raiz do projeto:
+  * `simulator/grid`
+  * `simulator/aircompressor`
+  * `simulator/extruder`
+* Executa a simulação dos ativos industriais.
+* Disponibiliza o dashboard web em:
 
-```bash
+```text
+http://localhost:5000
+```
+
+O dashboard possui controles para acompanhar os ativos e forçar/parar falhas.
+
+### 2. Middleware
+
+Abra outro terminal e, a partir da pasta raiz do projeto:
+
+```powershell
 cd middleware
 $env:PYTHONPATH = ".."
 python main.py
 ```
 
-- Conecta ao broker MQTT e assina os tópicos publicados pelo simulador.
-- Grava os dados no PostgreSQL (com fallback para buffer SQLite).
-- Sobe um servidor OPC UA em **opc.tcp://localhost:4840** (pode ser lido por qualquer cliente/SCADA OPC UA, ex: UaExpert).
+O middleware:
 
-> A ordem recomendada é: Mosquitto/Postgres → simulador → middleware (o
-> middleware só passa a ter dados assim que o simulador começar a publicar).
+* Conecta ao broker MQTT.
+* Assina os tópicos publicados pelo simulador.
+* Mantém os dados em cache.
+* Persiste os dados no PostgreSQL.
+* Utiliza o `buffer.db` como fallback caso o PostgreSQL esteja indisponível.
+* Sincroniza os dados armazenados no buffer quando o PostgreSQL voltar.
+* Inicializa o servidor OPC UA em:
+
+```text
+opc.tcp://localhost:4840
+```
+
+O servidor OPC UA pode ser acessado por clientes OPC UA, como o Elipse E3 ou UaExpert.
+
+### 3. Elipse E3 — Supervisório
+
+Após iniciar o **middleware** e confirmar que o servidor OPC UA está disponível em:
+
+```text
+opc.tcp://localhost:4840
+```
+
+é necessário configurar e executar o supervisório desenvolvido no **Elipse E3**.
+
+#### Extraindo o supervisório
+
+Na raiz do projeto existe o arquivo:
+
+```text
+supervisorio.zip
+```
+
+Extraia/mantenha essa pasta no computador e abra o arquivo de domínio do Elipse E3 (`.dom`) presente nela.
+
+O arquivo `.dom` é o arquivo de domínio do projeto e deve ser aberto utilizando o **Elipse E3 Studio**.
+
+#### Executando o supervisório
+
+1. Abra o **Elipse E3 Studio**.
+2. Abra o arquivo `.dom` localizado na pasta `supervisorio`.
+3. Execute o domínio/projeto.
+4. Caso seja solicitado login, utilize as credenciais padrão:
+
+```text
+Usuário: admin
+Senha:   adm
+```
+
+O supervisório realiza a comunicação com o servidor OPC UA do middleware para apresentar os dados dos ativos industriais.
+
+> O middleware deve estar em execução antes de iniciar o supervisório para que as tags OPC UA possam fornecer os dados simulados.
+
+### Ordem completa de execução
+
+Em condições normais, abra os componentes nesta ordem:
+
+```text
+┌──────────────────────────┐
+│       Mosquitto          │
+│       MQTT :1883         │
+└────────────┬─────────────┘
+             ↓
+┌──────────────────────────┐
+│      PostgreSQL          │
+│       :5432              │
+└────────────┬─────────────┘
+             ↓
+┌──────────────────────────┐
+│       Simulator          │
+│      MQTT Publisher      │
+│      Flask :5000         │
+└────────────┬─────────────┘
+             ↓
+┌──────────────────────────┐
+│       Middleware         │
+│      MQTT Subscriber     │
+│      OPC UA :4840        │
+└────────────┬─────────────┘
+             ↓
+┌──────────────────────────┐
+│       Elipse E3          │
+│       Supervisório       │
+└──────────────────────────┘
+```
 
 ## Estrutura de pastas
 
-```
+```text
 desafio-watt-vinicius-rafael-main/
 ├── middleware/
-│   ├── main.py                    # ponto de entrada do middleware
-│   ├── logger.py                  # logging simples (info/warn/error/debug), usado por middleware e simulator
-│   ├── connection   
-│   │   └── mqttclient.py          # assinante MQTT
-│   ├── opc   
-│   │   └── server.py              # servidor OPC UA
+│   ├── main.py
+│   ├── logger.py
+│   ├── connection/
+│   │   └── mqttclient.py
+│   ├── opc/
+│   │   └── server.py
 │   └── storage/
-│       ├── cache.py               # cache em memória (fila por ativo)
-│       ├── buffer.py              # buffer local em SQLite (fallback)
-│       ├── postgres.py            # persistência em PostgreSQL
-│       └── storagemanager.py      # orquestra cache + postgres + buffer
+│       ├── cache.py
+│       ├── buffer.py
+│       ├── postgres.py
+│       └── storagemanager.py
+│
 ├── simulator/
-│   ├── main.py                    # ponto de entrada do simulador
-│   ├── logger.py                  # logging simples (info/warn/error/debug), usado por middleware e simulator
-│   ├── dashboard.py                # dashboard Flask
-│   ├── connection   
-│   │   └── mqttclient.py          # publicador MQTT
+│   ├── main.py
+│   ├── logger.py
+│   ├── dashboard.py
+│   ├── connection/
+│   │   └── mqttclient.py
 │   ├── assets/
-│   │   ├── device.py               # classe base + enum de estados
-│   │   └── devices/                # Grid, AirCompressor, Extruder
-│   ├── templates/index.html
-│   └── static/                     # CSS e JS do dashboard
+│   │   ├── device.py
+│   │   └── devices/
+│   ├── templates/
+│   │   └── index.html
+│   └── static/
+│
+├── supervisorio.dom
+├── banco de dados.sql
+│
 └── requirements.txt
 ```
 
 ## Solução de problemas
 
-- **`ModuleNotFoundError: No module named 'assets'` (ou `connection`,
-  `dashboard`) ao rodar o simulador**: confirme que está rodando de **dentro
-  da pasta `simulator/`** (esses imports são relativos a ela).
-- **Middleware não conecta ao Postgres**: verifique se o serviço está no ar
-  e se usuário/senha/porta em `middleware/main.py` batem com sua instalação.
-  Enquanto isso, os dados continuam sendo gravados no `buffer.db` local.
-- **Nada aparece no dashboard**: confira se o Mosquitto está rodando na porta
-  1883 antes de iniciar o simulador.
-- Um aviso de `DeprecationWarning` sobre `Callback API version 1` ao rodar o
-  middleware é esperado e inofensivo (biblioteca `paho-mqtt` mantendo
-  compatibilidade com código escrito para a API antiga).
+### `ModuleNotFoundError: No module named 'assets'`
+
+Confirme que o simulador está sendo executado de dentro da pasta `simulator`:
+
+```powershell
+cd simulator
+python main.py
+```
+
+### Middleware não conecta ao PostgreSQL
+
+Verifique:
+
+* Se o PostgreSQL está em execução.
+* Se o banco `simulador` existe.
+* Se usuário e senha estão corretos.
+* Se a porta está configurada corretamente em `middleware/main.py`.
+
+Enquanto o PostgreSQL estiver indisponível, o middleware continuará armazenando os dados no `buffer.db`.
+
+### Nada aparece no dashboard
+
+Verifique se o Mosquitto está rodando na porta `1883` antes de iniciar o simulador.
+
+### Elipse E3 não apresenta os dados
+
+Verifique:
+
+1. Se o middleware está em execução.
+2. Se o servidor OPC UA está disponível em:
+
+```text
+opc.tcp://localhost:4840
+```
+
+3. Se o projeto correto foi aberto no Elipse E3.
+4. Se o domínio (`.dom`) foi executado.
+5. Se o usuário utilizado é:
+
+```text
+admin
+```
+
+e a senha:
+
+```text
+adm
+```
+
+6. Se o simulador está em execução e publicando dados via MQTT.
+
+### `DeprecationWarning` sobre `Callback API version 1`
+
+Esse aviso é esperado e inofensivo. A biblioteca `paho-mqtt` mantém compatibilidade com código desenvolvido utilizando a API antiga.
