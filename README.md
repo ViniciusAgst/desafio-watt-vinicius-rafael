@@ -106,7 +106,7 @@ source venv/bin/activate
 **Windows:**
 
 ```powershell
-venv\Scripts\activate
+source venv\Scripts\activate
 ```
 
 ### 3. Instale as dependências
