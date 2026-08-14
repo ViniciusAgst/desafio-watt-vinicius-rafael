@@ -1,4 +1,4 @@
-DEBUG = False
+DEBUG = True
 
 def info(component, message):
     print(f"[{component}] {message}")

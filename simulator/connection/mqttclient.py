@@ -56,7 +56,7 @@ class MQTTClient:
                 retain=False
             )
 
-            debug("MQTT", f"Publicado: {topic}")
+            debug("MQTT", f"Publicado: {topic} -> {payload}")
 
         except Exception as e:
             error("MQTT", f"Erro ao publicar em {topic}: {e}")
